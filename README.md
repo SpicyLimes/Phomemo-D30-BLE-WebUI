@@ -2,7 +2,7 @@
 
 A browser-based label designer and printer for the Phomemo D30 using only Web Bluetooth (no app required). This Repo is intended for personal use only, but others are free to use it should they benefit from it.
 
-You can access the Web UI via this URL: [Phomemo D30 Printer Web UI](https://spicylimes.github.io/Phomemo-D30-BLE-WebUI/)
+You can access the Web UI via this URL: [Phomemo D30 Printer Web UI](https://spicylimes.com/printer)
 
 ## Features
 - Pure HTML + JavaScript (works offline once loaded)
