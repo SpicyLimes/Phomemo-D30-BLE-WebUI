@@ -26,7 +26,6 @@ const END_DATA = new Uint8Array([0x1b, 0x64, 0x00]);
 
 /**
  * Determines a given pixel to be either black (0) or white (1).
- * Uses a threshold of 384 (128 * 3) to handle anti-aliasing from QR codes and images.
  * Adapted from {@link https://github.com/WebBluetoothCG/demos/tree/gh-pages/bluetooth-printer}
  *
  * @param {HTMLCanvasElement} canvas the canvas you're printing
@@ -39,9 +38,7 @@ const getWhitePixel = (canvas, imageData, x, y) => {
 	const red = imageData[(canvas.width * y + x) * 4];
 	const green = imageData[(canvas.width * y + x) * 4 + 1];
 	const blue = imageData[(canvas.width * y + x) * 4 + 2];
-	// Use threshold of 384 (128 * 3) instead of 0 to handle anti-aliasing
-	// This prevents slightly gray pixels from being converted to white
-	return red + green + blue > 384 ? 0 : 1;
+	return red + green + blue > 0 ? 0 : 1;
 };
 
 /**

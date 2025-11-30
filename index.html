@@ -1,228 +1,786 @@
 <!DOCTYPE html>
-<!--
-Custom UI vs. odensc/phomemo-d30-web-bluetooth:
-- Text tab: I add Font family, Bold/Italic/Underline/ALL CAPS, Alignment, Line height (×), Letter spacing (px), and Margin (px).
-- Layout: I place "Font size" + "Margin" side-by-side; "Line height" + "Letter spacing" beneath.
-- Fonts: I load Google Webfonts and add system options (Arial, Times New Roman, Courier New).
-- Barcode/Image/QR remain unchanged.
--->
 <html lang="en">
-  <head>
-    <title>Phomemo D30 Web Bluetooth</title>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+	<head>
+		<title>Phomemo D30 Web Bluetooth</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"
-      integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg=="
-      crossorigin="anonymous"
-      referrerpolicy="no-referrer"
-    />
+		<link
+			rel="stylesheet"
+			href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/css/bootstrap.min.css"
+			integrity="sha512-jnSuA4Ss2PkkikSOLtYs8BlYIeeIK1h99ty4YfvRPAlzr377vr3CXDb7sb7eEEBYjDtcYj+AjBH3FLv5uSJuXg=="
+			crossorigin="anonymous"
+			referrerpolicy="no-referrer"
+		/>
 
-    <!-- Text tab: neutralize any CSS rotation from the core preview -->
-    <style>
-      #nav-text.show .card .card-body,
-      #nav-text.show #canvas {
-        transform: none !important;
-      }
-    </style>
+		<link rel="stylesheet" href="index.css" />
 
-    <link rel="stylesheet" href="index.css" />
+		<!-- Webfonts for the font family selector -->
+		<link rel="preconnect" href="https://fonts.googleapis.com" />
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+		<link
+			href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Libre+Franklin:wght@400;700&family=Oswald:wght@400;700&family=Fredoka:wght@400;700&family=Baloo+2:wght@400;700&family=Libre+Baskerville:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Alex+Brush&family=Caveat:wght@400;700&family=Stardos+Stencil:wght@400;700&family=Staatliches&display=swap"
+			rel="stylesheet"
+		/>
+	</head>
+	<body>
+		<div class="container-fluid my-4">
+			<h2><b>Phomemo D30 Web Bluetooth</b></h2>
+			<div style="height: 10px"></div>
+			<div class="row">
+				<!-- Main content: Form controls and Preview -->
+				<div class="col-md-12">
+					<form id="mainForm">
+						<div class="tab-content mb-3" id="nav-tabContent">
+							<div
+								class="tab-pane show active"
+								id="nav-text"
+								role="tabpanel"
+								aria-labelledby="nav-text-tab"
+								tabindex="0"
+							>
+								<!-- Text Settings -->
+								<div class="row mb-3">
+									<div class="col-md-3">
+										<h4>Text Settings</h4>
+										<div class="mb-3">
+											<label for="inputText" class="form-label">Text to print</label>
+											<textarea class="form-control" id="inputText" rows="3">Hello world</textarea>
+										</div>
 
-    <!-- Webfonts for the font family selector -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Libre+Franklin:wght@400;700&family=Oswald:wght@400;700&family=Fredoka:wght@400;700&family=Baloo+2:wght@400;700&family=Libre+Baskerville:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Alex+Brush&family=Caveat:wght@400;700&family=Stardos+Stencil:wght@400;700&family=Staatliches&display=swap" rel="stylesheet">
-  </head>
-  <body>
-    <div class="container my-4">
-      <h1>Phomemo D30 Web Bluetooth</h1>
+										<!-- Font size + Margin -->
+										<div class="row g-2 align-items-end mb-2">
+											<div class="col-6">
+												<label for="inputFontSize" class="form-label">Font size</label>
+												<div class="input-group">
+													<input
+														type="number"
+														step="1"
+														min="8"
+														max="200"
+														value="36"
+														class="form-control"
+														id="inputFontSize"
+													/>
+													<span class="input-group-text">px</span>
+												</div>
+											</div>
+											<div class="col-6">
+												<label for="textMargin" class="form-label">Margin</label>
+												<div class="input-group">
+													<input
+														type="number"
+														min="0"
+														max="30"
+														value="6"
+														class="form-control"
+														id="textMargin"
+													/>
+													<span class="input-group-text">px</span>
+												</div>
+											</div>
+										</div>
 
-      <nav class="mb-3">
-        <div class="nav nav-tabs" id="nav-tab" role="tablist">
-          <button class="nav-link active" id="nav-text-tab" data-bs-toggle="tab" data-bs-target="#nav-text" type="button" role="tab" aria-controls="nav-text" aria-selected="true">Text</button>
-          <button class="nav-link" id="nav-barcode-tab" data-bs-toggle="tab" data-bs-target="#nav-barcode" type="button" role="tab" aria-controls="nav-barcode" aria-selected="false">Barcode</button>
-          <button class="nav-link" id="nav-image-tab" data-bs-toggle="tab" data-bs-target="#nav-image" type="button" role="tab" aria-controls="nav-image" aria-selected="false">Image</button>
-          <button class="nav-link" id="nav-qr-tab" data-bs-toggle="tab" data-bs-target="#nav-qr" type="button" role="tab" aria-controls="nav-qr" aria-selected="false">QR Code</button>
-        </div>
-      </nav>
+										<!-- Line height + Letter spacing -->
+										<div class="row g-2 align-items-end mb-3">
+											<div class="col-6">
+												<label for="lineHeight" class="form-label">Line height</label>
+												<div class="input-group">
+													<input
+														id="lineHeight"
+														type="number"
+														step="0.1"
+														min="1.0"
+														max="2.0"
+														value="1.2"
+														class="form-control"
+													/>
+													<span class="input-group-text">×</span>
+												</div>
+											</div>
+											<div class="col-6">
+												<label for="letterSpacing" class="form-label">Letter spacing</label>
+												<div class="input-group">
+													<input
+														id="letterSpacing"
+														type="number"
+														step="0.5"
+														min="0"
+														max="10"
+														value="0"
+														class="form-control"
+													/>
+													<span class="input-group-text">px</span>
+												</div>
+											</div>
+										</div>
 
-      <form class="col-lg-6">
-        <div class="tab-content mb-3" id="nav-tabContent">
-          <!-- TEXT TAB -->
-          <div class="tab-pane show active" id="nav-text" role="tabpanel" aria-labelledby="nav-text-tab" tabindex="0">
-            <h2>Text</h2>
+										<!-- Font Family -->
+										<div class="mb-3">
+											<label for="fontFamily" class="form-label">Font family</label>
+											<select class="form-select" id="fontFamily">
+												<option value="Arial">Arial</option>
+												<option value="Times New Roman">Times New Roman</option>
+												<option value="Courier New">Courier New</option>
+												<option value="Inter">Inter</option>
+												<option value="Libre Franklin">Libre Franklin</option>
+												<option value="Oswald">Oswald</option>
+												<option value="Staatliches">Staatliches</option>
+												<option value="Fredoka">Fredoka</option>
+												<option value="Baloo 2">Baloo 2</option>
+												<option value="Libre Baskerville">Libre Baskerville</option>
+												<option value="JetBrains Mono">JetBrains Mono</option>
+												<option value="Alex Brush">Alex Brush</option>
+												<option value="Caveat">Caveat</option>
+												<option value="Stardos Stencil">Stardos Stencil</option>
+											</select>
+										</div>
 
-            <!-- Font size + Margin -->
-            <div class="row g-2 align-items-end mb-2">
-              <div class="col-6">
-                <label for="inputFontSize" class="form-label">Font size</label>
-                <div class="input-group">
-                  <input
-                    type="number"
-                    step="1"
-                    min="8"
-                    value="32"
-                    class="form-control flex-grow-0"
-                    style="width: 5rem"
-                    id="inputFontSize"
-                  />
-                  <span class="input-group-text">px</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <label for="advMargin" class="form-label">Margin</label>
-                <div class="input-group">
-                  <input
-                    type="number"
-                    min="0"
-                    max="30"
-                    value="6"
-                    class="form-control flex-grow-0"
-                    style="width: 5rem"
-                    id="advMargin"
-                  />
-                  <span class="input-group-text">px</span>
-                </div>
-              </div>
-            </div>
+										<!-- Text Alignment -->
+										<div class="mb-3">
+											<label for="textAlign" class="form-label">Text alignment</label>
+											<select class="form-select" id="textAlign">
+												<option value="center">Center</option>
+												<option value="left">Left</option>
+												<option value="right">Right</option>
+											</select>
+										</div>
 
-            <!-- Line height + Letter spacing -->
-            <div class="row g-2 align-items-end mb-3">
-              <div class="col-6">
-                <label for="advLineHeight" class="form-label">Line height</label>
-                <div class="input-group">
-                  <input id="advLineHeight" type="number" step="0.1" min="1.0" max="2.0" value="1.2" class="form-control flex-grow-0" style="width: 5rem"/>
-                  <span class="input-group-text">×</span>
-                </div>
-              </div>
-              <div class="col-6">
-                <label for="advLetterSpacing" class="form-label">Letter spacing</label>
-                <div class="input-group">
-                  <input id="advLetterSpacing" type="number" step="0.5" min="0" max="10" value="0" class="form-control flex-grow-0" style="width: 5rem"/>
-                  <span class="input-group-text">px</span>
-                </div>
-              </div>
-            </div>
+										<!-- Styles -->
+										<div class="d-flex gap-3 mb-3 flex-wrap">
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="fontBold" />
+												<label class="form-check-label fw-bold" for="fontBold">Bold</label>
+											</div>
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="fontItalic" />
+												<label class="form-check-label fst-italic" for="fontItalic">Italic</label>
+											</div>
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="fontUnderline" />
+												<label class="form-check-label text-decoration-underline" for="fontUnderline"
+													>Underline</label
+												>
+											</div>
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="fontUppercase" />
+												<label class="form-check-label text-uppercase" for="fontUppercase"
+													>All Caps</label
+												>
+											</div>
+										</div>
 
-            <!-- Font + Alignment -->
-            <div class="row g-2 mb-3">
-              <div class="col-12 col-md-6">
-                <label for="advFontFamily" class="form-label">Font family</label>
-                <select id="advFontFamily" class="form-select">
-                  <option>Arial</option>
-                  <option>Times New Roman</option>
-                  <option>Courier New</option>
-                  <option>Inter</option>
-                  <option>Libre Franklin</option>
-                  <option>Oswald</option>
-                  <option>Staatliches</option>
-                  <option>Fredoka</option>
-                  <option>Baloo 2</option>
-                  <option>Libre Baskerville</option>
-                  <option>JetBrains Mono</option>
-                  <option>Alex Brush</option>
-                  <option>Caveat</option>
-                  <option>Stardos Stencil</option>
-                </select>
-              </div>
-              <div class="col-12 col-md-6">
-                <label for="advAlign" class="form-label">Alignment</label>
-                <select id="advAlign" class="form-select">
-                  <option value="left">Left</option>
-                  <option value="center" selected>Center</option>
-                  <option value="right">Right</option>
-                </select>
-              </div>
-            </div>
+										<div class="mb-3">
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="verticalText" />
+												<label class="form-check-label" for="verticalText">
+													Vertical text (stack letters)
+												</label>
+											</div>
+										</div>
+									</div>
 
-            <!-- Styles -->
-            <div class="d-flex gap-3 mb-3 flex-wrap">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="advBold">
-                <label class="form-check-label" for="advBold">Bold</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="advItalic">
-                <label class="form-check-label" for="advItalic">Italic</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="advUnderline">
-                <label class="form-check-label" for="advUnderline">Underline</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="advUpper">
-                <label class="form-check-label" for="advUpper">ALL CAPS</label>
-              </div>
-            </div>
+									<!-- Image Settings -->
+									<div class="col-md-3">
+										<h4>Image Settings</h4>
+										<div class="mb-3" id="imagePreviewGroup" style="display: none">
+											<label class="form-label">Image preview</label>
+											<div class="d-flex gap-2">
+												<div class="flex-fill text-center">
+													<small>Original</small>
+													<canvas
+														id="imagePreviewOriginal"
+														class="img-preview border rounded"
+													></canvas>
+												</div>
+												<div class="flex-fill text-center">
+													<small>Processed</small>
+													<canvas
+														id="imagePreviewProcessed"
+														class="img-preview border rounded"
+													></canvas>
+												</div>
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="inputImage" class="form-label">Upload image</label>
+											<input class="form-control" type="file" id="inputImage" accept="image/*" />
+										</div>
+										<div class="mb-3">
+											<label for="imagePosition" class="form-label">Image position</label>
+											<select class="form-select" id="imagePosition">
+												<option value="above">Above text</option>
+												<option value="below">Below text</option>
+												<option value="left">Left of text</option>
+												<option value="right">Right of text</option>
+												<option value="background">Behind text</option>
+												<option value="none">None (text only)</option>
+											</select>
+										</div>
+										<div class="mb-3">
+											<label for="imageSize" class="form-label">Image size (%)</label>
+											<input
+												type="range"
+												class="form-range"
+												min="10"
+												max="100"
+												step="5"
+												value="50"
+												id="imageSize"
+											/>
+											<div class="form-text">
+												<span id="imageSizeValue">50</span>% of available space
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="ditherAlgorithm" class="form-label">Dithering algorithm</label>
+											<select class="form-select" id="ditherAlgorithm">
+												<option value="floyd">Floyd–Steinberg</option>
+												<option value="atkinson">Atkinson</option>
+												<option value="stucki">Stucki</option>
+												<option value="jarvis">Jarvis-Judice-Ninke</option>
+												<option value="sierra">Sierra</option>
+												<option value="burkes">Burkes</option>
+												<option value="threshold">Threshold</option>
+												<option value="ordered2">Ordered Bayer 2x2</option>
+												<option value="ordered4">Ordered Bayer 4x4</option>
+												<option value="ordered8">Ordered Bayer 8x8</option>
+												<option value="blue_noise">Blue Noise</option>
+												<option value="two_phase">Two-Phase Diffusion</option>
+											</select>
+										</div>
+										<div class="mb-3">
+											<label for="threshold" class="form-label">Threshold</label>
+											<input
+												type="range"
+												class="form-range"
+												min="0"
+												max="255"
+												step="1"
+												value="128"
+												id="threshold"
+											/>
+											<div class="form-text">
+												<span id="thresholdValue">128</span>
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="brightness" class="form-label">Brightness</label>
+											<input
+												type="range"
+												class="form-range"
+												min="-100"
+												max="100"
+												step="1"
+												value="0"
+												id="brightness"
+											/>
+											<div class="form-text">
+												<span id="brightnessValue">0</span>
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="contrast" class="form-label">Contrast</label>
+											<input
+												type="range"
+												class="form-range"
+												min="-100"
+												max="100"
+												step="1"
+												value="0"
+												id="contrast"
+											/>
+											<div class="form-text">
+												<span id="contrastValue">0</span>
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="noise" class="form-label">Dither noise</label>
+											<input
+												type="range"
+												class="form-range"
+												min="0"
+												max="50"
+												step="1"
+												value="0"
+												id="noise"
+											/>
+											<div class="form-text">
+												<span id="noiseValue">0</span> (adds randomness to dithering)
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="imageRotation" class="form-label">Image rotation</label>
+											<select class="form-select" id="imageRotation">
+												<option value="0">0°</option>
+												<option value="90">90°</option>
+												<option value="180">180°</option>
+												<option value="270">270°</option>
+											</select>
+										</div>
 
-            <label for="inputText" class="form-label">Text to print</label>
-            <textarea class="form-control" id="inputText">Hello world</textarea>
-          </div>
+										<!-- Advanced Processing Options -->
+										<div class="accordion mt-4" id="advancedAccordion">
+											<div class="accordion-item">
+												<h2 class="accordion-header">
+													<button
+														class="accordion-button collapsed"
+														type="button"
+														data-bs-toggle="collapse"
+														data-bs-target="#advancedCollapse"
+														aria-expanded="false"
+														aria-controls="advancedCollapse"
+													>
+														Advanced Processing
+													</button>
+												</h2>
+												<div
+													id="advancedCollapse"
+													class="accordion-collapse collapse"
+													data-bs-parent="#advancedAccordion"
+												>
+													<div class="accordion-body">
+														<div class="mb-3">
+															<div class="form-check">
+																<input
+																	class="form-check-input"
+																	type="checkbox"
+																	id="usePrinterResolution"
+																/>
+																<label class="form-check-label" for="usePrinterResolution">
+																	Scale to printer resolution
+																</label>
+																<div class="form-text">
+																	Scales image to exact printer DPI for optimal quality
+																</div>
+															</div>
+														</div>
 
-          <!-- BARCODE TAB -->
-          <div class="tab-pane" id="nav-barcode" role="tabpanel" aria-labelledby="nav-barcode-tab" tabindex="0">
-            <h2>Barcode</h2>
-            <label for="inputBarcode" class="form-label">Barcode data (CODE128)</label>
-            <input type="text" class="form-control" value="123456" id="inputBarcode" />
-          </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input
+																	class="form-check-input"
+																	type="checkbox"
+																	id="useGammaCorrection"
+																/>
+																<label class="form-check-label" for="useGammaCorrection">
+																	Gamma correction
+																</label>
+																<div class="form-text">
+																	Converts screen gamma to printer linear response
+																</div>
+															</div>
+														</div>
 
-          <!-- IMAGE TAB -->
-          <div class="tab-pane" id="nav-image" role="tabpanel" aria-labelledby="nav-image-tab" tabindex="0">
-            <h2>Image</h2>
-            <label for="inputImage" class="form-label">Image file</label>
-            <input type="file" class="form-control" id="inputImage" />
-          </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input
+																	class="form-check-input"
+																	type="checkbox"
+																	id="usePreFiltering"
+																/>
+																<label class="form-check-label" for="usePreFiltering">
+																	Pre-filtering (blur + sharpen)
+																</label>
+																<div class="form-text">
+																	Reduces noise and enhances edges before dithering
+																</div>
+															</div>
+														</div>
 
-          <!-- QR TAB -->
-          <div class="tab-pane" id="nav-qr" role="tabpanel" aria-labelledby="nav-qr-tab" tabindex="0">
-            <h2>QR Code</h2>
-            <label for="inputQR" class="form-label">QR code data</label>
-            <input type="text" class="form-control" value="https://example.com" id="inputQR" />
-          </div>
-        </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input class="form-check-input" type="checkbox" id="useCLAHE" />
+																<label class="form-check-label" for="useCLAHE">
+																	CLAHE contrast enhancement
+																</label>
+																<div class="form-text">
+																	Adaptive histogram equalization for better details
+																</div>
+															</div>
+														</div>
 
-        <div>
-          <h2>Label size</h2>
-          <div class="input-group mb-3">
-            <span class="input-group-text">Width (mm)</span>
-            <input type="number" step="1" class="form-control" value="40" aria-label="Width" id="inputWidth" />
-            <span class="input-group-text">Height (mm)</span>
-            <input type="number" step="1" class="form-control" value="12" aria-label="Height" id="inputHeight" />
-          </div>
-        </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input class="form-check-input" type="checkbox" id="useEdgeAware" />
+																<label class="form-check-label" for="useEdgeAware">
+																	Edge-aware dithering
+																</label>
+																<div class="form-text">
+																	Preserves thin lines and important edges
+																</div>
+															</div>
+														</div>
 
-        <div class="d-flex flex-column align-items-start mb-3">
-          <h2>Preview</h2>
-          <p>Images are sent to printer vertically.</p>
-          <div class="card shadow-sm">
-            <div class="card-body p-1">
-              <canvas id="canvas"></canvas>
-            </div>
-          </div>
-        </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input
+																	class="form-check-input"
+																	type="checkbox"
+																	id="useHardwareCleanup"
+																/>
+																<label class="form-check-label" for="useHardwareCleanup">
+																	Hardware-safe cleanup
+																</label>
+																<div class="form-text">
+																	Removes isolated pixels and thickens thin lines
+																</div>
+															</div>
+														</div>
 
-        <button type="submit" class="btn btn-primary">Connect &amp; print</button>
-      </form>
-    </div>
+														<div class="mb-3">
+															<div class="form-check">
+																<input
+																	class="form-check-input"
+																	type="checkbox"
+																	id="serpentine"
+																	checked
+																/>
+																<label class="form-check-label" for="serpentine">
+																	Serpentine scanning
+																</label>
+																<div class="form-text">
+																	Alternates scan direction to reduce banding
+																</div>
+															</div>
+														</div>
 
-    <div class="toast-container position-fixed bottom-0 start-0 p-3">
-      <div id="errorToast" class="toast align-items-center text-bg-danger border-0" role="alert" aria-live="assertive" aria-atomic="true">
-        <div class="d-flex">
-          <div class="toast-body">
-            <span id="errorText"></span>
-          </div>
-          <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
-        </div>
-      </div>
-    </div>
+														<div class="mb-3">
+															<label for="gamma" class="form-label">Gamma value</label>
+															<input
+																type="range"
+																class="form-range"
+																min="1.0"
+																max="3.0"
+																step="0.1"
+																value="2.2"
+																id="gamma"
+															/>
+															<div class="form-text">
+																<span id="gammaValue">2.2</span> (2.2 = standard screen gamma)
+															</div>
+														</div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.min.js" integrity="sha512-ykZ1QQr0Jy/4ZkvKuqWn4iF3lqPZyij9iRv6sGqLRdTPkY69YX6+7wvVGmsdBbiIfN/8OdsI7HABjvEok6ZopQ==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsbarcode/3.11.6/JsBarcode.all.min.js" integrity="sha512-k2wo/BkbloaRU7gc/RkCekHr4IOVe10kYxJ/Q8dRPl7u3YshAQmg3WfZtIcseEk+nGBdK03fHBeLgXTxRmWCLQ==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js" integrity="sha512-PEhlWBZBrQL7flpJPY8lXx8tIN7HWX912GzGhFTDqA3iWFrakVH3lVHomCoU9BhfKzgxfEk6EG2C3xej+9srOQ==" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+														<div class="mb-3">
+															<label for="blurSigma" class="form-label">Pre-blur strength</label>
+															<input
+																type="range"
+																class="form-range"
+																min="0.1"
+																max="2.0"
+																step="0.1"
+																value="0.5"
+																id="blurSigma"
+															/>
+															<div class="form-text">
+																<span id="blurSigmaValue">0.5</span> (reduces noise before
+																dithering)
+															</div>
+														</div>
 
-    <!-- Our add-on (loads index.core.js internally) -->
-    <script type="module" src="index.js" defer></script>
-  </body>
+														<div class="mb-3">
+															<label for="unsharpAmount" class="form-label">Edge enhancement</label>
+															<input
+																type="range"
+																class="form-range"
+																min="0.0"
+																max="2.0"
+																step="0.1"
+																value="0.8"
+																id="unsharpAmount"
+															/>
+															<div class="form-text">
+																<span id="unsharpAmountValue">0.8</span> (restores edge sharpness)
+															</div>
+														</div>
+
+														<div class="mb-3">
+															<label for="claheClipLimit" class="form-label"
+																>CLAHE clip limit</label
+															>
+															<input
+																type="range"
+																class="form-range"
+																min="1.0"
+																max="4.0"
+																step="0.1"
+																value="2.0"
+																id="claheClipLimit"
+															/>
+															<div class="form-text">
+																<span id="claheClipLimitValue">2.0</span> (prevents
+																over-enhancement)
+															</div>
+														</div>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+
+									<!-- QR Code & Barcode Settings -->
+									<div class="col-md-3">
+										<h4>QR Code & Barcode</h4>
+										<div class="mb-3">
+											<label for="codeType" class="form-label">Code type</label>
+											<select class="form-select" id="codeType">
+												<option value="none">None</option>
+												<option value="qr">QR Code</option>
+												<option value="barcode">Barcode (CODE128)</option>
+											</select>
+										</div>
+										<div class="mb-3" id="codeDataGroup">
+											<label for="codeData" class="form-label">Code data</label>
+											<textarea
+												class="form-control"
+												id="codeData"
+												rows="2"
+												placeholder="Enter text or data to encode"
+											></textarea>
+										</div>
+										<div class="mb-3" id="codePositionGroup">
+											<label for="codePosition" class="form-label">Code position</label>
+											<select class="form-select" id="codePosition">
+												<option value="above">Above text</option>
+												<option value="below">Below text</option>
+												<option value="left">Left of text</option>
+												<option value="right">Right of text</option>
+												<option value="background">Behind text</option>
+											</select>
+										</div>
+										<div class="mb-3" id="codeSizeGroup">
+											<label for="codeSize" class="form-label">Code size (%)</label>
+											<input
+												type="range"
+												class="form-range"
+												min="10"
+												max="100"
+												step="5"
+												value="30"
+												id="codeSize"
+											/>
+											<div class="form-text">
+												<span id="codeSizeValue">30</span>% of available space
+											</div>
+										</div>
+										<div class="mb-3" id="qrErrorCorrectionGroup" style="display: none">
+											<label for="qrErrorCorrection" class="form-label">QR Error correction</label>
+											<select class="form-select" id="qrErrorCorrection">
+												<option value="L">Low (7%)</option>
+												<option value="M" selected>Medium (15%)</option>
+												<option value="Q">Quartile (25%)</option>
+												<option value="H">High (30%)</option>
+											</select>
+										</div>
+										<div class="mb-3" id="barcodeFormatGroup" style="display: none">
+											<label for="barcodeFormat" class="form-label">Barcode format</label>
+											<select class="form-select" id="barcodeFormat">
+												<option value="CODE128">CODE128</option>
+												<option value="CODE39">CODE39</option>
+												<option value="EAN13">EAN13</option>
+												<option value="EAN8">EAN8</option>
+												<option value="UPC">UPC</option>
+											</select>
+										</div>
+
+										<h4 class="mt-4">Border Settings</h4>
+										<div class="mb-3">
+											<div class="form-check">
+												<input class="form-check-input" type="checkbox" id="enableBorder" />
+												<label class="form-check-label" for="enableBorder"> Enable border </label>
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="borderWidth" class="form-label">Border width</label>
+											<input
+												type="range"
+												class="form-range"
+												min="1"
+												max="4"
+												step="1"
+												value="2"
+												id="borderWidth"
+											/>
+											<div class="form-text">
+												<span id="borderWidthValue">2</span>px
+											</div>
+										</div>
+										<div class="mb-3">
+											<label for="borderStyle" class="form-label">Border style</label>
+											<select class="form-select" id="borderStyle">
+												<option value="square">Square corners</option>
+												<option value="rounded">Rounded corners (4px)</option>
+											</select>
+										</div>
+									</div>
+
+									<!-- Preview -->
+									<div class="col-md-3">
+										<h4>Preview</h4>
+										<p class="text-left">Images are sent to printer vertically.</p>
+
+										<div class="d-flex flex-column align-items-center mb-4">
+											<div class="mb-3 align-center-start">
+												<h5 class="text-center">Preview rotation</h5>
+												<div class="btn-group" role="group" aria-label="Preview rotation">
+													<button
+														type="button"
+														class="btn btn-outline-secondary"
+														id="rotateCounterClockwise"
+													>
+														↺ 90° CCW
+													</button>
+													<button
+														type="button"
+														class="btn btn-outline-secondary"
+														id="rotateClockwise"
+													>
+														↻ 90° CW
+													</button>
+												</div>
+											</div>
+
+											<div class="card shadow-sm">
+												<div class="card-body p-1">
+													<div class="preview-container">
+														<canvas id="canvas"></canvas>
+													</div>
+												</div>
+											</div>
+
+											<button type="submit" class="btn btn-primary mt-3" form="mainForm">
+												Connect &amp; print
+											</button>
+										</div>
+
+										<div class="mt-4">
+											<h4>Print offset</h4>
+											<p class="text-muted small">
+												Adjust position to compensate for printer alignment
+											</p>
+
+											<div class="d-flex justify-content-center mb-3">
+												<div class="btn-group-vertical me-3">
+													<button
+														type="button"
+														class="btn btn-outline-secondary btn-sm"
+														id="offsetUp"
+													>
+														↑
+													</button>
+													<div class="btn-group">
+														<button
+															type="button"
+															class="btn btn-outline-secondary btn-sm"
+															id="offsetLeft"
+														>
+															←
+														</button>
+														<button
+															type="button"
+															class="btn btn-outline-secondary btn-sm"
+															id="offsetReset"
+														>
+															⌂
+														</button>
+														<button
+															type="button"
+															class="btn btn-outline-secondary btn-sm"
+															id="offsetRight"
+														>
+															→
+														</button>
+													</div>
+													<button
+														type="button"
+														class="btn btn-outline-secondary btn-sm"
+														id="offsetDown"
+													>
+														↓
+													</button>
+												</div>
+												<div class="align-self-center">
+													<div class="text-center small">
+														<div>X: <span id="offsetXValue">0</span>px</div>
+														<div>Y: <span id="offsetYValue">0</span>px</div>
+													</div>
+												</div>
+											</div>
+
+											<div class="row mb-3">
+												<div class="col-6">
+													<label for="offsetStep" class="form-label">Step size</label>
+													<select class="form-select form-select-sm" id="offsetStep">
+														<option value="1">1px</option>
+														<option value="2">2px</option>
+														<option value="5" selected>5px</option>
+														<option value="10">10px</option>
+														<option value="20">20px</option>
+													</select>
+												</div>
+											</div>
+										</div>
+
+										<div class="mt-4">
+											<h4>Label size</h4>
+											<div class="input-group mb-3">
+												<span class="input-group-text">Width (mm)</span>
+												<input
+													type="number"
+													step="1"
+													class="form-control"
+													value="40"
+													aria-label="Width"
+													id="inputWidth"
+												/>
+												<span class="input-group-text">Height (mm)</span>
+												<input
+													type="number"
+													step="1"
+													class="form-control"
+													value="12"
+													aria-label="Height"
+													id="inputHeight"
+												/>
+											</div>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+					</form>
+				</div>
+			</div>
+		</div>
+
+		<div class="toast-container position-fixed bottom-0 start-0 p-3">
+			<div
+				id="errorToast"
+				class="toast align-items-center text-bg-danger border-0"
+				role="alert"
+				aria-live="assertive"
+				aria-atomic="true"
+			>
+				<div class="d-flex">
+					<div class="toast-body">
+						<span id="errorText"></span>
+					</div>
+					<button
+						type="button"
+						class="btn-close btn-close-white me-2 m-auto"
+						data-bs-dismiss="toast"
+						aria-label="Close"
+					></button>
+				</div>
+			</div>
+		</div>
+
+		<script
+			src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.3/js/bootstrap.bundle.min.js"
+			integrity="sha512-7Pi/otdlbbCR+LnW+F7PwFcSDJOuUJB3OxtEHbg4vSMvzvJjde4Po1v4BR9Gdc9aXNUNFVUY+SK51wWT8WF0Gg=="
+			crossorigin="anonymous"
+			referrerpolicy="no-referrer"
+		></script>
+		<script type="module" src="index.js" defer></script>
+	</body>
 </html>
