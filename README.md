@@ -1,15 +1,11 @@
 # Phomemo D30 Web Bluetooth
 
-Proof of concept and demo of printing to a [Phomemo D30](https://www.amazon.com/dp/B08HV3MPFD) Bluetooth label maker via the browser using Web Bluetooth.
+This Repo is a fork of [Benni306's](https://github.com/Benni306/phomemo-d30-web-bluetooth) Extended Web UI for printing Labels via a Browser on the Phomemo D30 Label Printer. Their Repo was forked from the original creator of this Web UI which can be found [here](https://github.com/odensc/phomemo-d30-web-bluetooth).
 
-## Demo
-
-[My extended demo version is available here.](https://Benni306.github.io/phomemo-d30-web-bluetooth/) Please use a Web Bluetooth-compatible browser (e.g. Chromium-based).
-
-## Credits
-This version is based on the [demo by odensc](https://odensc.github.io/phomemo-d30-web-bluetooth/)
-
-Inspiration for the data structure / image conversion was taken from some other great open-source projects. Thanks to:
-
+Additional Attributions from the original Author's GitHub Repo:
 - https://github.com/WebBluetoothCG/demos
 - https://github.com/Knightro63/phomemo
+
+## Key Differences:
+- Visual Modifications made to the Web UI
+- Potential for creating a Docker-ized Version in the future.
