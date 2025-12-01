@@ -40,6 +40,72 @@ const num = (v, dflt = 0) => {
 	return Number.isFinite(n) ? n : dflt;
 };
 
+/**
+ * Generate QR code or barcode
+ */
+const generateCode = async (data, type, format = "CODE128", errorCorrection = "M") => {
+	if (!data.trim()) return null;
+
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
+
+	if (type === "qr") {
+		try {
+			await QRCode.toCanvas(canvas, data, {
+				errorCorrectionLevel: errorCorrection,
+				type: "image/png",
+				quality: 0.92,
+				margin: 1,
+				color: {
+					dark: "#000000",
+					light: "#FFFFFF",
+				},
+				width: 200,
+			});
+		} catch (err) {
+			console.error("QR code generation failed:", err);
+			return null;
+		}
+	} else if (type === "barcode") {
+		try {
+			const tempImg = document.createElement("img");
+
+			JsBarcode(tempImg, data, {
+				format: format,
+				width: 2,
+				height: 100,
+				displayValue: false,
+				background: "#FFFFFF",
+				lineColor: "#000000",
+				margin: 10,
+			});
+
+			await new Promise((resolve, reject) => {
+				tempImg.onload = () => {
+					canvas.width = tempImg.width;
+					canvas.height = tempImg.height;
+					ctx.fillStyle = "#FFFFFF";
+					ctx.fillRect(0, 0, canvas.width, canvas.height);
+					ctx.drawImage(tempImg, 0, 0);
+					resolve();
+				};
+				tempImg.onerror = reject;
+			});
+		} catch (err) {
+			console.error("Barcode generation failed:", err);
+			return null;
+		}
+	}
+
+	const img = new Image();
+	img.src = canvas.toDataURL();
+	await new Promise((resolve) => {
+		img.onload = resolve;
+	});
+
+	return img;
+};
+
 const generateBlueNoiseMap = (size = 64) => {
 	const map = new Uint8Array(size * size);
 	const used = new Array(size * size).fill(false);
@@ -874,6 +940,34 @@ const updateCanvasText = async (canvas) => {
 	textArea.width -= margin * 2;
 	textArea.height -= margin * 2;
 
+/**
+ * Update rotation buttons and CSS
+ */
+const updateRotationButtons = () => {
+	const canvas = $("#canvas");
+	if (!canvas) return;
+	const card = canvas.closest(".card");
+	if (!card) return;
+
+	card.classList.remove("rotate-90", "rotate-180", "rotate-270");
+
+	const normalizedRotation = ((previewRotation % 360) + 360) % 360;
+
+	switch (normalizedRotation) {
+		case 0:
+			break;
+		case 90:
+			card.classList.add("rotate-90");
+			break;
+		case 180:
+			card.classList.add("rotate-180");
+			break;
+		case 270:
+			card.classList.add("rotate-270");
+			break;
+	}
+};
+
 // Handle image processing and positioning
 	let codeImageHeight = 0;
 	let codeImageWidth = 0;
@@ -1393,6 +1487,205 @@ document.addEventListener("DOMContentLoaded", function () {
 	updateRotationButtons();
 	updateCanvasText(canvas);
 
+/**
+ * Applies gamma correction to image data
+ */
+const applyGammaCorrection = (imgData, gamma = 2.2) => {
+	const { data } = imgData;
+	const gammaLUT = new Uint8Array(256);
+
+	for (let i = 0; i < 256; i++) {
+		gammaLUT[i] = Math.round(255 * Math.pow(i / 255, gamma));
+	}
+
+	for (let i = 0; i < data.length; i += 4) {
+		data[i] = gammaLUT[data[i]];
+		data[i + 1] = gammaLUT[data[i + 1]];
+		data[i + 2] = gammaLUT[data[i + 2]];
+	}
+
+	return imgData;
+};
+
+/**
+ * Applies Gaussian blur to image data
+ */
+const applyGaussianBlur = (imgData, sigma = 0.5) => {
+	if (sigma <= 0) return imgData;
+
+	const { width, height, data } = imgData;
+	const output = new Uint8ClampedArray(data);
+
+	const kernelSize = Math.ceil(sigma * 3) * 2 + 1;
+	const kernel = new Float32Array(kernelSize);
+	const center = Math.floor(kernelSize / 2);
+	let sum = 0;
+
+	for (let i = 0; i < kernelSize; i++) {
+		const x = i - center;
+		kernel[i] = Math.exp(-(x * x) / (2 * sigma * sigma));
+		sum += kernel[i];
+	}
+
+	for (let i = 0; i < kernelSize; i++) {
+		kernel[i] /= sum;
+	}
+
+	// Horizontal pass
+	for (let y = 0; y < height; y++) {
+		for (let x = 0; x < width; x++) {
+			let r = 0,
+				g = 0,
+				b = 0;
+
+			for (let i = 0; i < kernelSize; i++) {
+				const px = Math.max(0, Math.min(width - 1, x + i - center));
+				const idx = (y * width + px) * 4;
+				const weight = kernel[i];
+
+				r += data[idx] * weight;
+				g += data[idx + 1] * weight;
+				b += data[idx + 2] * weight;
+			}
+
+			const outIdx = (y * width + x) * 4;
+			output[outIdx] = r;
+			output[outIdx + 1] = g;
+			output[outIdx + 2] = b;
+			output[outIdx + 3] = data[outIdx + 3];
+		}
+	}
+
+	data.set(output);
+
+	// Vertical pass
+	for (let x = 0; x < width; x++) {
+		for (let y = 0; y < height; y++) {
+			let r = 0,
+				g = 0,
+				b = 0;
+
+			for (let i = 0; i < kernelSize; i++) {
+				const py = Math.max(0, Math.min(height - 1, y + i - center));
+				const idx = (py * width + x) * 4;
+				const weight = kernel[i];
+
+				r += data[idx] * weight;
+				g += data[idx + 1] * weight;
+				b += data[idx + 2] * weight;
+			}
+
+			const outIdx = (y * width + x) * 4;
+			output[outIdx] = r;
+			output[outIdx + 1] = g;
+			output[outIdx + 2] = b;
+			output[outIdx + 3] = data[outIdx + 3];
+		}
+	}
+
+	data.set(output);
+	return imgData;
+};
+
+/**
+ * Applies unsharp mask to enhance edges
+ */
+const applyUnsharpMask = (imgData, radius = 1.0, amount = 0.8) => {
+	const { width, height, data } = imgData;
+
+	const blurred = new ImageData(new Uint8ClampedArray(data), width, height);
+	applyGaussianBlur(blurred, radius);
+
+	for (let i = 0; i < data.length; i += 4) {
+		for (let c = 0; c < 3; c++) {
+			const original = data[i + c];
+			const blur = blurred.data[i + c];
+			const enhanced = original + amount * (original - blur);
+			data[i + c] = Math.max(0, Math.min(255, enhanced));
+		}
+	}
+
+	return imgData;
+};
+
+/**
+ * Applies CLAHE (Contrast Limited Adaptive Histogram Equalization)
+ */
+const applyCLAHE = (imgData, tileSize = 16, clipLimit = 2.0) => {
+	const { width, height, data } = imgData;
+	const tilesX = Math.ceil(width / tileSize);
+	const tilesY = Math.ceil(height / tileSize);
+
+	const gray = new Uint8Array(width * height);
+	for (let i = 0; i < gray.length; i++) {
+		const idx = i * 4;
+		gray[i] = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+	}
+
+	const processedGray = new Uint8Array(gray);
+
+	for (let ty = 0; ty < tilesY; ty++) {
+		for (let tx = 0; tx < tilesX; tx++) {
+			const x1 = tx * tileSize;
+			const y1 = ty * tileSize;
+			const x2 = Math.min(x1 + tileSize, width);
+			const y2 = Math.min(y1 + tileSize, height);
+
+			const hist = new Array(256).fill(0);
+			let pixelCount = 0;
+
+			for (let y = y1; y < y2; y++) {
+				for (let x = x1; x < x2; x++) {
+					const val = gray[y * width + x];
+					hist[val]++;
+					pixelCount++;
+				}
+			}
+
+			const excess = Math.max(0, Math.max(...hist) - (clipLimit * pixelCount) / 256);
+			if (excess > 0) {
+				const redistribution = excess / 256;
+				for (let i = 0; i < 256; i++) {
+					if (hist[i] > (clipLimit * pixelCount) / 256) {
+						hist[i] = (clipLimit * pixelCount) / 256;
+					}
+					hist[i] += redistribution;
+				}
+			}
+
+			const cdf = new Array(256);
+			cdf[0] = hist[0];
+			for (let i = 1; i < 256; i++) {
+				cdf[i] = cdf[i - 1] + hist[i];
+			}
+
+			const mapping = new Uint8Array(256);
+			for (let i = 0; i < 256; i++) {
+				mapping[i] = Math.round((cdf[i] / pixelCount) * 255);
+			}
+
+			for (let y = y1; y < y2; y++) {
+				for (let x = x1; x < x2; x++) {
+					const idx = y * width + x;
+					processedGray[idx] = mapping[gray[idx]];
+				}
+			}
+		}
+	}
+
+	for (let i = 0; i < processedGray.length; i++) {
+		const idx = i * 4;
+		const originalGray = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+		const ratio = originalGray > 0 ? processedGray[i] / originalGray : 1;
+
+		data[idx] = Math.min(255, data[idx] * ratio);
+		data[idx + 1] = Math.min(255, data[idx + 1] * ratio);
+		data[idx + 2] = Math.min(255, data[idx + 2] * ratio);
+	}
+
+	return imgData;
+};
+	
 	// Print
 	$("form").addEventListener("submit", (e) => {
 		e.preventDefault();
