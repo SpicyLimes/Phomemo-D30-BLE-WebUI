@@ -1,0 +1,171 @@
+* {
+	box-sizing: border-box;
+}
+
+.form-range {
+	margin-bottom: 0.5rem;
+}
+
+.form-text {
+	font-size: 0.875rem;
+	color: #6c757d;
+}
+
+#canvas {
+	border: 1px solid #dee2e6;
+	border-radius: 0.375rem;
+	max-width: 100%;
+	height: auto;
+}
+
+/* Preview container with consistent sizing */
+.preview-container {
+	width: 100%;
+	height: 300px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.preview-container #canvas {
+	max-width: 100%;
+	max-height: 100%;
+	width: auto;
+	height: auto;
+	object-fit: contain;
+}
+
+.card {
+	display: inline-block;
+	transition: transform 0.3s ease;
+}
+
+/* Rotate the entire card (including border) */
+.card.rotate-90 {
+	transform: rotate(90deg);
+	margin: 2rem;
+}
+
+.card.rotate-180 {
+	transform: rotate(180deg);
+	margin: 1rem;
+}
+
+.card.rotate-270 {
+	transform: rotate(270deg);
+	margin: 2rem;
+}
+
+h4 {
+	color: #495057;
+	font-size: 1.1rem;
+	margin-bottom: 1rem;
+	border-bottom: 1px solid #dee2e6;
+	padding-bottom: 0.5rem;
+}
+
+.btn-group .btn {
+	font-size: 0.875rem;
+	padding: 0.375rem 0.75rem;
+}
+
+.btn-group .btn:hover {
+	z-index: 1;
+}
+
+/* Rotate button hover effects */
+#rotateClockwise:hover,
+#rotateCounterClockwise:hover {
+	background-color: #0d6efd;
+	border-color: #0d6efd;
+	color: white;
+}
+
+/* Offset controls styling */
+.btn-group-vertical .btn-group {
+	display: flex;
+}
+
+.btn-group-vertical .btn,
+.btn-group .btn {
+	min-width: 40px;
+	min-height: 40px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 1.2rem;
+	font-weight: bold;
+}
+
+#offsetReset {
+	font-size: 1rem;
+}
+
+/* Image preview canvases */
+.img-preview {
+	max-width: 100%;
+	height: auto;
+	background-color: #ffffff;
+}
+
+/* Font family dropdown - each option shows in its own font */
+#fontFamily option {
+	padding: 0.5rem;
+}
+
+#fontFamily option[value="Arial"] {
+	font-family: Arial, Helvetica, sans-serif;
+}
+
+#fontFamily option[value="Times New Roman"] {
+	font-family: "Times New Roman", Times, serif;
+}
+
+#fontFamily option[value="Courier New"] {
+	font-family: "Courier New", Courier, monospace;
+}
+
+#fontFamily option[value="Inter"] {
+	font-family: "Inter", system-ui, Arial, Helvetica, sans-serif;
+}
+
+#fontFamily option[value="Libre Franklin"] {
+	font-family: "Libre Franklin", "Franklin Gothic Medium", Arial, Helvetica, sans-serif;
+}
+
+#fontFamily option[value="Oswald"] {
+	font-family: "Oswald", "DIN Alternate", "DIN Condensed", Arial, Helvetica, sans-serif;
+}
+
+#fontFamily option[value="Staatliches"] {
+	font-family: "Staatliches", "Bahnschrift", Arial, Helvetica, sans-serif;
+}
+
+#fontFamily option[value="Fredoka"] {
+	font-family: "Fredoka", "Arial Rounded MT", Arial, sans-serif;
+}
+
+#fontFamily option[value="Baloo 2"] {
+	font-family: "Baloo 2", "Comic Sans MS", cursive;
+}
+
+#fontFamily option[value="Libre Baskerville"] {
+	font-family: "Libre Baskerville", "Times New Roman", Times, serif;
+}
+
+#fontFamily option[value="JetBrains Mono"] {
+	font-family: "JetBrains Mono", "Courier New", Courier, monospace;
+}
+
+#fontFamily option[value="Alex Brush"] {
+	font-family: "Alex Brush", "Brush Script MT", cursive;
+}
+
+#fontFamily option[value="Caveat"] {
+	font-family: "Caveat", "Bradley Hand", cursive;
+}
+
+#fontFamily option[value="Stardos Stencil"] {
+	font-family: "Stardos Stencil", "Stencil", Impact, sans-serif;
+}
