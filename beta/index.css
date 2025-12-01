@@ -59,61 +59,10 @@
 
 h4 {
 	color: #495057;
-	font-size: 1.1rem;
-	margin-bottom: 1rem;
-	border-bottom: 1px solid #dee2e6;
-	padding-bottom: 0.5rem;
+	font-weight: 700;
 }
 
-.btn-group .btn {
-	font-size: 0.875rem;
-	padding: 0.375rem 0.75rem;
-}
-
-.btn-group .btn:hover {
-	z-index: 1;
-}
-
-/* Rotate button hover effects */
-#rotateClockwise:hover,
-#rotateCounterClockwise:hover {
-	background-color: #0d6efd;
-	border-color: #0d6efd;
-	color: white;
-}
-
-/* Offset controls styling */
-.btn-group-vertical .btn-group {
-	display: flex;
-}
-
-.btn-group-vertical .btn,
-.btn-group .btn {
-	min-width: 40px;
-	min-height: 40px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	font-size: 1.2rem;
-	font-weight: bold;
-}
-
-#offsetReset {
-	font-size: 1rem;
-}
-
-/* Image preview canvases */
-.img-preview {
-	max-width: 100%;
-	height: auto;
-	background-color: #ffffff;
-}
-
-/* Font family dropdown - each option shows in its own font */
-#fontFamily option {
-	padding: 0.5rem;
-}
-
+/* Font styles for the select options to show previews */
 #fontFamily option[value="Arial"] {
 	font-family: Arial, Helvetica, sans-serif;
 }
@@ -159,13 +108,5 @@ h4 {
 }
 
 #fontFamily option[value="Alex Brush"] {
-	font-family: "Alex Brush", "Brush Script MT", cursive;
-}
-
-#fontFamily option[value="Caveat"] {
-	font-family: "Caveat", "Bradley Hand", cursive;
-}
-
-#fontFamily option[value="Stardos Stencil"] {
-	font-family: "Stardos Stencil", "Stencil", Impact, sans-serif;
+	font-family: "Alex Brush", "Brush Script MT", "Times New Roman", Times, serif;
 }
