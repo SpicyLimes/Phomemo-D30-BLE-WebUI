@@ -40,10 +40,624 @@ const num = (v, dflt = 0) => {
 	return Number.isFinite(n) ? n : dflt;
 };
 
-// [Include all helper functions from experimental version - gamma, blur, CLAHE, dithering, etc.]
-// Due to character limits, I'll note these are included but show key new functionality
+const generateBlueNoiseMap = (size = 64) => {
+	const map = new Uint8Array(size * size);
+	const used = new Array(size * size).fill(false);
 
-// ... [All image processing functions here] ...
+	for (let i = 0; i < size * size; i++) {
+		let bestDist = -1;
+		let bestIdx = 0;
+
+		for (let attempt = 0; attempt < Math.min(100, size * size - i); attempt++) {
+			const candidate = Math.floor(Math.random() * size * size);
+			if (used[candidate]) continue;
+
+			let minDist = Infinity;
+			for (let j = 0; j < size * size; j++) {
+				if (!used[j]) continue;
+
+				const x1 = candidate % size;
+				const y1 = Math.floor(candidate / size);
+				const x2 = j % size;
+				const y2 = Math.floor(j / size);
+
+				const dist = Math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2);
+				minDist = Math.min(minDist, dist);
+			}
+
+			if (minDist > bestDist) {
+				bestDist = minDist;
+				bestIdx = candidate;
+			}
+		}
+
+		used[bestIdx] = true;
+		map[bestIdx] = Math.floor((i / (size * size)) * 256);
+	}
+
+	return map;
+};
+
+const detectEdges = (imgData) => {
+	const { width, height, data } = imgData;
+	const edges = new Uint8Array(width * height);
+
+	const sobelX = [
+		[-1, 0, 1],
+		[-2, 0, 2],
+		[-1, 0, 1],
+	];
+	const sobelY = [
+		[-1, -2, -1],
+		[0, 0, 0],
+		[1, 2, 1],
+	];
+
+	for (let y = 1; y < height - 1; y++) {
+		for (let x = 1; x < width - 1; x++) {
+			let gx = 0,
+				gy = 0;
+
+			for (let ky = -1; ky <= 1; ky++) {
+				for (let kx = -1; kx <= 1; kx++) {
+					const idx = ((y + ky) * width + (x + kx)) * 4;
+					const intensity = 0.299 * data[idx] + 0.587 * data[idx + 1] + 0.114 * data[idx + 2];
+
+					gx += intensity * sobelX[ky + 1][kx + 1];
+					gy += intensity * sobelY[ky + 1][kx + 1];
+				}
+			}
+
+			const magnitude = Math.sqrt(gx * gx + gy * gy);
+			edges[y * width + x] = Math.min(255, magnitude);
+		}
+	}
+
+	return edges;
+};
+
+const scaleToExactResolution = (image, targetWidth, targetHeight, method = "lanczos") => {
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
+
+	canvas.width = targetWidth;
+	canvas.height = targetHeight;
+
+	ctx.fillStyle = "#ffffff";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	if (method === "nearest") {
+		ctx.imageSmoothingEnabled = false;
+	} else {
+		ctx.imageSmoothingEnabled = true;
+		ctx.imageSmoothingQuality = method === "lanczos" ? "high" : "medium";
+	}
+
+	const scaleX = targetWidth / image.width;
+	const scaleY = targetHeight / image.height;
+	const scale = Math.min(scaleX, scaleY);
+
+	const scaledWidth = image.width * scale;
+	const scaledHeight = image.height * scale;
+	const offsetX = (targetWidth - scaledWidth) / 2;
+	const offsetY = (targetHeight - scaledHeight) / 2;
+
+	ctx.drawImage(image, offsetX, offsetY, scaledWidth, scaledHeight);
+
+	return canvas;
+};
+
+const ditherImageData = (
+	imgData,
+	algorithm = "floyd",
+	threshold = 128,
+	brightness = 0,
+	contrast = 0,
+	noise = 0,
+	serpentine = true,
+	edgeMap = null
+) => {
+	const { width, height, data } = imgData;
+	const gray = new Float32Array(width * height);
+
+	const brightnessAdjust = brightness * 2.55;
+	const contrastFactor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+	const noiseAmount = noise * 2.55;
+
+	for (let i = 0; i < gray.length; i++) {
+		const r = data[i * 4];
+		const g = data[i * 4 + 1];
+		const b = data[i * 4 + 2];
+
+		let adjustedR = Math.max(0, Math.min(255, contrastFactor * (r - 128) + 128 + brightnessAdjust));
+		let adjustedG = Math.max(0, Math.min(255, contrastFactor * (g - 128) + 128 + brightnessAdjust));
+		let adjustedB = Math.max(0, Math.min(255, contrastFactor * (b - 128) + 128 + brightnessAdjust));
+
+		let luminance = 0.299 * adjustedR + 0.587 * adjustedG + 0.114 * adjustedB;
+
+		if (noise > 0) {
+			const randomNoise = (Math.random() - 0.5) * noiseAmount;
+			luminance = Math.max(0, Math.min(255, luminance + randomNoise));
+		}
+
+		gray[i] = luminance;
+	}
+
+	const setBWPixel = (idx, val) => {
+		data[idx * 4] = data[idx * 4 + 1] = data[idx * 4 + 2] = val;
+		data[idx * 4 + 3] = 255;
+	};
+
+	if (algorithm === "threshold") {
+		for (let i = 0; i < gray.length; i++) {
+			let adjustedThreshold = threshold;
+
+			if (edgeMap) {
+				const edgeStrength = edgeMap[i] / 255;
+				adjustedThreshold = threshold - edgeStrength * 30;
+			}
+
+			setBWPixel(i, gray[i] < adjustedThreshold ? 0 : 255);
+		}
+		return imgData;
+	}
+
+	if (algorithm === "blue_noise") {
+		const noiseMap = generateBlueNoiseMap(64);
+		const mapSize = 64;
+
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const idx = y * width + x;
+				const noiseIdx = (y % mapSize) * mapSize + (x % mapSize);
+				const noiseThreshold = noiseMap[noiseIdx];
+
+				let adjustedThreshold = noiseThreshold;
+				if (edgeMap) {
+					const edgeStrength = edgeMap[idx] / 255;
+					adjustedThreshold = noiseThreshold - edgeStrength * 40;
+				}
+
+				setBWPixel(idx, gray[idx] < adjustedThreshold ? 0 : 255);
+			}
+		}
+		return imgData;
+	}
+
+	if (algorithm.startsWith("ordered")) {
+		let matrix;
+		if (algorithm === "ordered2") {
+			matrix = [
+				[0, 2],
+				[3, 1],
+			];
+		} else if (algorithm === "ordered4") {
+			matrix = [
+				[0, 8, 2, 10],
+				[12, 4, 14, 6],
+				[3, 11, 1, 9],
+				[15, 7, 13, 5],
+			];
+		} else if (algorithm === "ordered8") {
+			matrix = [
+				[0, 32, 8, 40, 2, 34, 10, 42],
+				[48, 16, 56, 24, 50, 18, 58, 26],
+				[12, 44, 4, 36, 14, 46, 6, 38],
+				[60, 28, 52, 20, 62, 30, 54, 22],
+				[3, 35, 11, 43, 1, 33, 9, 41],
+				[51, 19, 59, 27, 49, 17, 57, 25],
+				[15, 47, 7, 39, 13, 45, 5, 37],
+				[63, 31, 55, 23, 61, 29, 53, 21],
+			];
+		} else {
+			matrix = [
+				[0, 8, 2, 10],
+				[12, 4, 14, 6],
+				[3, 11, 1, 9],
+				[15, 7, 13, 5],
+			];
+		}
+
+		const n = matrix.length;
+		const scale = 255 / (n * n);
+
+		for (let y = 0; y < height; y++) {
+			for (let x = 0; x < width; x++) {
+				const idx = y * width + x;
+				let thresholdVal = (matrix[y % n][x % n] + 0.5) * scale;
+
+				if (edgeMap) {
+					const edgeStrength = edgeMap[idx] / 255;
+					thresholdVal -= edgeStrength * 40;
+				}
+
+				setBWPixel(idx, gray[idx] < thresholdVal ? 0 : 255);
+			}
+		}
+
+		return imgData;
+	}
+
+	const errorKernels = {
+		floyd: [
+			{ x: 1, y: 0, weight: 7 / 16 },
+			{ x: -1, y: 1, weight: 3 / 16 },
+			{ x: 0, y: 1, weight: 5 / 16 },
+			{ x: 1, y: 1, weight: 1 / 16 },
+		],
+		atkinson: [
+			{ x: 1, y: 0, weight: 1 / 8 },
+			{ x: 2, y: 0, weight: 1 / 8 },
+			{ x: -1, y: 1, weight: 1 / 8 },
+			{ x: 0, y: 1, weight: 1 / 8 },
+			{ x: 1, y: 1, weight: 1 / 8 },
+			{ x: 0, y: 2, weight: 1 / 8 },
+		],
+		stucki: [
+			{ x: 1, y: 0, weight: 8 / 42 },
+			{ x: 2, y: 0, weight: 4 / 42 },
+			{ x: -2, y: 1, weight: 2 / 42 },
+			{ x: -1, y: 1, weight: 4 / 42 },
+			{ x: 0, y: 1, weight: 8 / 42 },
+			{ x: 1, y: 1, weight: 4 / 42 },
+			{ x: 2, y: 1, weight: 2 / 42 },
+			{ x: -2, y: 2, weight: 1 / 42 },
+			{ x: -1, y: 2, weight: 2 / 42 },
+			{ x: 0, y: 2, weight: 4 / 42 },
+			{ x: 1, y: 2, weight: 2 / 42 },
+			{ x: 2, y: 2, weight: 1 / 42 },
+		],
+		jarvis: [
+			{ x: 1, y: 0, weight: 7 / 48 },
+			{ x: 2, y: 0, weight: 5 / 48 },
+			{ x: -2, y: 1, weight: 3 / 48 },
+			{ x: -1, y: 1, weight: 5 / 48 },
+			{ x: 0, y: 1, weight: 7 / 48 },
+			{ x: 1, y: 1, weight: 5 / 48 },
+			{ x: 2, y: 1, weight: 3 / 48 },
+			{ x: -2, y: 2, weight: 1 / 48 },
+			{ x: -1, y: 2, weight: 3 / 48 },
+			{ x: 0, y: 2, weight: 5 / 48 },
+			{ x: 1, y: 2, weight: 3 / 48 },
+			{ x: 2, y: 2, weight: 1 / 48 },
+		],
+		sierra: [
+			{ x: 1, y: 0, weight: 5 / 32 },
+			{ x: 2, y: 0, weight: 3 / 32 },
+			{ x: -2, y: 1, weight: 2 / 32 },
+			{ x: -1, y: 1, weight: 4 / 32 },
+			{ x: 0, y: 1, weight: 5 / 32 },
+			{ x: 1, y: 1, weight: 4 / 32 },
+			{ x: 2, y: 1, weight: 2 / 32 },
+			{ x: -1, y: 2, weight: 2 / 32 },
+			{ x: 0, y: 2, weight: 3 / 32 },
+			{ x: 1, y: 2, weight: 2 / 32 },
+		],
+		burkes: [
+			{ x: 1, y: 0, weight: 8 / 32 },
+			{ x: 2, y: 0, weight: 4 / 32 },
+			{ x: -2, y: 1, weight: 2 / 32 },
+			{ x: -1, y: 1, weight: 4 / 32 },
+			{ x: 0, y: 1, weight: 8 / 32 },
+			{ x: 1, y: 1, weight: 4 / 32 },
+			{ x: 2, y: 1, weight: 2 / 32 },
+		],
+	};
+
+	const kernel = errorKernels[algorithm] || errorKernels.floyd;
+
+	for (let y = 0; y < height; y++) {
+		const direction = serpentine && y % 2 === 1 ? -1 : 1;
+		const startX = direction === 1 ? 0 : width - 1;
+		const endX = direction === 1 ? width : -1;
+
+		for (let x = startX; x !== endX; x += direction) {
+			const idx = y * width + x;
+			const oldVal = gray[idx];
+
+			let adjustedThreshold = threshold;
+			if (edgeMap) {
+				const edgeStrength = edgeMap[idx] / 255;
+				adjustedThreshold = threshold - edgeStrength * 20;
+			}
+
+			const newVal = oldVal < adjustedThreshold ? 0 : 255;
+			const err = oldVal - newVal;
+			gray[idx] = newVal;
+			setBWPixel(idx, newVal);
+
+			for (const { x: dx, y: dy, weight } of kernel) {
+				const nx = x + dx * direction;
+				const ny = y + dy;
+
+				if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+					const nIdx = ny * width + nx;
+					gray[nIdx] += err * weight;
+				}
+			}
+		}
+	}
+
+	return imgData;
+};
+
+const rotateImage = (image, angle) => {
+	const canvas = document.createElement("canvas");
+	const ctx = canvas.getContext("2d");
+
+	const normalizedAngle = ((angle % 360) + 360) % 360;
+
+	if (normalizedAngle === 90 || normalizedAngle === 270) {
+		canvas.width = image.height;
+		canvas.height = image.width;
+	} else {
+		canvas.width = image.width;
+		canvas.height = image.height;
+	}
+
+	ctx.fillStyle = "#ffffff";
+	ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+	ctx.translate(canvas.width / 2, canvas.height / 2);
+	ctx.rotate((angle * Math.PI) / 180);
+	ctx.drawImage(image, -image.width / 2, -image.height / 2);
+
+	return canvas;
+};
+
+const applyHardwareCleanup = (imgData) => {
+	const { width, height, data } = imgData;
+	const output = new Uint8ClampedArray(data);
+
+	for (let y = 1; y < height - 1; y++) {
+		for (let x = 1; x < width - 1; x++) {
+			const idx = (y * width + x) * 4;
+
+			if (data[idx] === 0) {
+				let blackNeighbors = 0;
+
+				for (let dy = -1; dy <= 1; dy++) {
+					for (let dx = -1; dx <= 1; dx++) {
+						if (dx === 0 && dy === 0) continue;
+						const nIdx = ((y + dy) * width + (x + dx)) * 4;
+						if (data[nIdx] === 0) blackNeighbors++;
+					}
+				}
+
+				if (blackNeighbors === 0) {
+					output[idx] = output[idx + 1] = output[idx + 2] = 255;
+				}
+			} else if (data[idx] === 255) {
+				const leftBlack = x > 0 && data[(y * width + (x - 1)) * 4] === 0;
+				const rightBlack = x < width - 1 && data[(y * width + (x + 1)) * 4] === 0;
+				const topWhite = y > 0 && data[((y - 1) * width + x) * 4] === 255;
+				const bottomWhite = y < height - 1 && data[((y + 1) * width + x) * 4] === 255;
+
+				const topBlack = y > 0 && data[((y - 1) * width + x) * 4] === 0;
+				const bottomBlack = y < height - 1 && data[((y + 1) * width + x) * 4] === 0;
+				const leftWhite = x > 0 && data[(y * width + (x - 1)) * 4] === 255;
+				const rightWhite = x < width - 1 && data[(y * width + (x + 1)) * 4] === 255;
+
+				if (
+					(leftBlack && rightBlack && topWhite && bottomWhite) ||
+					(topBlack && bottomBlack && leftWhite && rightWhite)
+				) {
+					output[idx] = output[idx + 1] = output[idx + 2] = 0;
+				}
+			}
+		}
+	}
+
+	data.set(output);
+	return imgData;
+};
+
+const applyTwoPhaseDiffusion = (imgData, threshold, brightness, contrast, noise, edgeMap) => {
+	const phase1 = ditherImageData(
+		new ImageData(new Uint8ClampedArray(imgData.data), imgData.width, imgData.height),
+		"ordered4",
+		threshold,
+		brightness,
+		contrast,
+		noise,
+		false,
+		null
+	);
+
+	return ditherImageData(
+		phase1,
+		"floyd",
+		threshold + 10,
+		0,
+		0,
+		0,
+		true,
+		edgeMap
+	);
+};
+
+const processImageWithAdjustments = (
+	image,
+	brightness = 0,
+	contrast = 0,
+	algorithm = "floyd",
+	threshold = 128,
+	rotation = 0,
+	noise = 0,
+	advancedOptions = {}
+) => {
+	const {
+		useGammaCorrection = false,
+		gamma = 2.2,
+		usePreFiltering = false,
+		blurSigma = 0.5,
+		unsharpRadius = 1.0,
+		unsharpAmount = 0.8,
+		useCLAHE = false,
+		claheClipLimit = 2.0,
+		claheTileSize = 16,
+		useEdgeAware = false,
+		useHardwareCleanup = false,
+		usePrinterResolution = false,
+		printerWidth = 320,
+		printerHeight = 96,
+		scalingMethod = "lanczos",
+		serpentine = true,
+	} = advancedOptions;
+
+	let rotatedImage = image;
+	if (rotation !== 0) {
+		rotatedImage = rotateImage(image, rotation);
+	}
+
+	if (usePrinterResolution) {
+		rotatedImage = scaleToExactResolution(rotatedImage, printerWidth, printerHeight, scalingMethod);
+	}
+
+	const tempCanvas = document.createElement("canvas");
+	const tempCtx = tempCanvas.getContext("2d");
+
+	tempCanvas.width = rotatedImage.width;
+	tempCanvas.height = rotatedImage.height;
+
+	tempCtx.fillStyle = "#ffffff";
+	tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+
+	tempCtx.drawImage(rotatedImage, 0, 0);
+
+	let imgData = tempCtx.getImageData(0, 0, tempCanvas.width, tempCanvas.height);
+
+	if (useGammaCorrection) {
+		imgData = applyGammaCorrection(imgData, gamma);
+	}
+
+	if (useCLAHE) {
+		imgData = applyCLAHE(imgData, claheTileSize, claheClipLimit);
+	}
+
+	if (usePreFiltering) {
+		imgData = applyGaussianBlur(imgData, blurSigma);
+		imgData = applyUnsharpMask(imgData, unsharpRadius, unsharpAmount);
+	}
+
+	let edgeMap = null;
+	if (useEdgeAware) {
+		edgeMap = detectEdges(imgData);
+	}
+
+	let processedData;
+	if (algorithm === "two_phase") {
+		processedData = applyTwoPhaseDiffusion(imgData, threshold, brightness, contrast, noise, edgeMap);
+	} else {
+		processedData = ditherImageData(
+			imgData,
+			algorithm,
+			threshold,
+			brightness,
+			contrast,
+			noise,
+			serpentine,
+			edgeMap
+		);
+	}
+
+	if (useHardwareCleanup) {
+		processedData = applyHardwareCleanup(processedData);
+	}
+
+	tempCtx.putImageData(processedData, 0, 0);
+
+	return tempCanvas;
+};
+
+const updateImagePreview = () => {
+	const previewGroup = $("#imagePreviewGroup");
+	const originalCanvas = $("#imagePreviewOriginal");
+	const processedCanvasEl = $("#imagePreviewProcessed");
+
+	if (!previewGroup || !originalCanvas || !processedCanvasEl) return;
+
+	if (!uploadedImage) {
+		previewGroup.style.display = "none";
+		return;
+	}
+
+	previewGroup.style.display = "block";
+
+	const brightness = $("#brightness")?.valueAsNumber ?? 0;
+	const contrast = $("#contrast")?.valueAsNumber ?? 0;
+	const algorithm = $("#ditherAlgorithm")?.value || "floyd";
+	const threshold = $("#threshold")?.valueAsNumber ?? 128;
+	const imageRotation = parseInt($("#imageRotation")?.value || "0", 10);
+	const noise = $("#noise")?.valueAsNumber ?? 0;
+
+	const maxPreviewDim = 120;
+
+	const origScale = Math.min(1, maxPreviewDim / Math.max(uploadedImage.width, uploadedImage.height));
+	const origW = Math.round(uploadedImage.width * origScale);
+	const origH = Math.round(uploadedImage.height * origScale);
+
+	originalCanvas.width = origW;
+	originalCanvas.height = origH;
+	originalCanvas.style.width = origW + "px";
+	originalCanvas.style.height = origH + "px";
+	originalCanvas.style.imageRendering = "pixelated";
+
+	const origCtx = originalCanvas.getContext("2d");
+	origCtx.imageSmoothingEnabled = false;
+	origCtx.clearRect(0, 0, origW, origH);
+	origCtx.drawImage(uploadedImage, 0, 0, origW, origH);
+
+	const advancedOptions = {
+		useGammaCorrection: $("#useGammaCorrection")?.checked || false,
+		gamma: parseFloat($("#gamma")?.value || "2.2"),
+		usePreFiltering: $("#usePreFiltering")?.checked || false,
+		blurSigma: parseFloat($("#blurSigma")?.value || "0.5"),
+		unsharpRadius: 1.0,
+		unsharpAmount: parseFloat($("#unsharpAmount")?.value || "0.8"),
+		useCLAHE: $("#useCLAHE")?.checked || false,
+		claheClipLimit: parseFloat($("#claheClipLimit")?.value || "2.0"),
+		claheTileSize: 16,
+		useEdgeAware: $("#useEdgeAware")?.checked || false,
+		useHardwareCleanup: $("#useHardwareCleanup")?.checked || false,
+		usePrinterResolution: false,
+		serpentine: $("#serpentine")?.checked !== false,
+	};
+
+	const processedTemp = processImageWithAdjustments(
+		uploadedImage,
+		brightness,
+		contrast,
+		algorithm,
+		threshold,
+		imageRotation,
+		noise,
+		advancedOptions
+	);
+
+	const procScale = Math.min(1, maxPreviewDim / Math.max(processedTemp.width, processedTemp.height));
+	const procW = Math.round(processedTemp.width * procScale);
+	const procH = Math.round(processedTemp.height * procScale);
+
+	processedCanvasEl.width = procW;
+	processedCanvasEl.height = procH;
+	processedCanvasEl.style.width = procW + "px";
+	processedCanvasEl.style.height = procH + "px";
+	processedCanvasEl.style.imageRendering = "pixelated";
+
+	const procCtx = processedCanvasEl.getContext("2d");
+	procCtx.imageSmoothingEnabled = false;
+	procCtx.clearRect(0, 0, procW, procH);
+	procCtx.drawImage(processedTemp, 0, 0, procW, procH);
+
+	[originalCanvas, processedCanvasEl].forEach((c) => {
+		const wrapper = c.closest(".flex-fill");
+		if (wrapper) {
+			wrapper.style.minWidth = maxPreviewDim + "px";
+			wrapper.style.minHeight = Math.max(origH, procH) + "px";
+		}
+	});
+};
 
 /**
  * Draw border on canvas
@@ -260,11 +874,141 @@ const updateCanvasText = async (canvas) => {
 	textArea.width -= margin * 2;
 	textArea.height -= margin * 2;
 
-	// Handle image processing and positioning
-	// [Image processing code similar to experimental version]
+// Handle image processing and positioning
+	let codeImageHeight = 0;
+	let codeImageWidth = 0;
 
-	// Handle code positioning
-	// [Code positioning similar to experimental version]
+	if (generatedCode) {
+		const codeSizeRatio = codeSize / 100;
+		const maxCodeW = rotatedWidth * codeSizeRatio;
+		const maxCodeH = rotatedHeight * codeSizeRatio;
+		const codeScale = Math.min(maxCodeW / generatedCode.width, maxCodeH / generatedCode.height);
+		codeImageWidth = generatedCode.width * codeScale;
+		codeImageHeight = generatedCode.height * codeScale;
+	}
+
+	if (uploadedImage && imagePosition !== "none") {
+		const advancedOptions = {
+			useGammaCorrection: $("#useGammaCorrection")?.checked || false,
+			gamma: parseFloat($("#gamma")?.value || "2.2"),
+			usePreFiltering: $("#usePreFiltering")?.checked || false,
+			blurSigma: parseFloat($("#blurSigma")?.value || "0.5"),
+			unsharpRadius: 1.0,
+			unsharpAmount: parseFloat($("#unsharpAmount")?.value || "0.8"),
+			useCLAHE: $("#useCLAHE")?.checked || false,
+			claheClipLimit: parseFloat($("#claheClipLimit")?.value || "2.0"),
+			claheTileSize: 16,
+			useEdgeAware: $("#useEdgeAware")?.checked || false,
+			useHardwareCleanup: $("#useHardwareCleanup")?.checked || false,
+			usePrinterResolution: $("#usePrinterResolution")?.checked || false,
+			printerWidth: canvas.width,
+			printerHeight: canvas.height,
+			scalingMethod: "lanczos",
+			serpentine: $("#serpentine")?.checked !== false,
+		};
+
+		processedImage = processImageWithAdjustments(
+			uploadedImage,
+			brightness,
+			contrast,
+			algorithm,
+			threshold,
+			imageRotation,
+			noise,
+			advancedOptions
+		);
+
+		const imageSizeRatio = imageSize / 100;
+
+		if (imagePosition === "background") {
+			const maxW = rotatedWidth;
+			const maxH = rotatedHeight;
+			const scale =
+				Math.min(maxW / processedImage.width, maxH / processedImage.height) * imageSizeRatio;
+			const drawW = processedImage.width * scale;
+			const drawH = processedImage.height * scale;
+
+			ctx.globalAlpha = 0.3;
+			ctx.drawImage(processedImage, -drawW / 2, -drawH / 2, drawW, drawH);
+			ctx.globalAlpha = 1.0;
+		} else {
+			const maxImageW = rotatedWidth * imageSizeRatio;
+			const maxImageH = rotatedHeight * imageSizeRatio;
+			const scale = Math.min(maxImageW / processedImage.width, maxImageH / processedImage.height);
+			const imageW = processedImage.width * scale;
+			const imageH = processedImage.height * scale;
+
+			let imageX, imageY;
+
+			switch (imagePosition) {
+				case "above":
+					imageX = -imageW / 2;
+					imageY = -rotatedHeight / 2;
+					textArea.y = imageY + imageH + 10;
+					textArea.height = rotatedHeight - imageH - 10;
+					break;
+				case "below":
+					imageX = -imageW / 2;
+					imageY = rotatedHeight / 2 - imageH;
+					textArea.height = rotatedHeight - imageH - 10;
+					break;
+				case "left":
+					imageX = -rotatedWidth / 2;
+					imageY = -imageH / 2;
+					textArea.x = imageX + imageW + 10;
+					textArea.width = rotatedWidth - imageW - 10;
+					break;
+				case "right":
+					imageX = rotatedWidth / 2 - imageW;
+					imageY = -imageH / 2;
+					textArea.width = rotatedWidth - imageW - 10;
+					break;
+			}
+							ctx.drawImage(processedImage, imageX, imageY, imageW, imageH);
+						}
+					}
+
+// Handle code positioning
+if (generatedCode && codePosition !== "background") {
+	let codeX, codeY;
+
+	switch (codePosition) {
+		case "above":
+			codeX = -codeImageWidth / 2;
+			codeY = textArea.y;
+			textArea.y = codeY + codeImageHeight + 10;
+			textArea.height = Math.max(0, textArea.height - codeImageHeight - 10);
+			break;
+		case "below":
+			codeX = -codeImageWidth / 2;
+			codeY = textArea.y + textArea.height - codeImageHeight;
+			textArea.height = Math.max(0, textArea.height - codeImageHeight - 10);
+			break;
+		case "left":
+			codeX = textArea.x;
+			codeY = -codeImageHeight / 2;
+			textArea.x = codeX + codeImageWidth + 10;
+			textArea.width = Math.max(0, textArea.width - codeImageWidth - 10);
+			break;
+		case "right":
+			codeX = textArea.x + textArea.width - codeImageWidth;
+			codeY = -codeImageHeight / 2;
+			textArea.width = Math.max(0, textArea.width - codeImageWidth - 10);
+			break;
+	}
+
+	ctx.drawImage(generatedCode, codeX, codeY, codeImageWidth, codeImageHeight);
+} else if (generatedCode && codePosition === "background") {
+	ctx.globalAlpha = 0.2;
+	ctx.drawImage(
+		generatedCode,
+		-codeImageWidth / 2,
+		-codeImageHeight / 2,
+		codeImageWidth,
+		codeImageHeight
+	);
+	ctx.globalAlpha = 1.0;
+}
 
 	// Draw text with advanced features
 	if (text.trim()) {
@@ -414,10 +1158,166 @@ document.addEventListener("DOMContentLoaded", function () {
 	});
 
 	// Wire up image controls
-	// [Similar to experimental version]
+	$all(
+		"#imagePosition, #imageSize, #imageRotation, #ditherAlgorithm, #threshold, #brightness, #contrast, #noise"
+	).forEach((e) => e.addEventListener("input", () => updateCanvasText(canvas)));
 
-	// Wire up code controls
-	// [Similar to experimental version]
+	// Advanced processing controls
+	$all(
+		"#useGammaCorrection, #gamma, #usePreFiltering, #blurSigma, #unsharpAmount, #useCLAHE, #claheClipLimit, #useEdgeAware, #useHardwareCleanup, #usePrinterResolution, #serpentine"
+	).forEach((e) => e.addEventListener("input", () => updateCanvasText(canvas)));
+
+	$all(
+		"#useGammaCorrection, #usePreFiltering, #useCLAHE, #useEdgeAware, #useHardwareCleanup, #usePrinterResolution, #serpentine"
+	).forEach((e) => e.addEventListener("change", () => updateCanvasText(canvas)));
+
+	// QR Code and Barcode controls
+	$all("#codeType, #codeData, #codePosition, #codeSize, #qrErrorCorrection, #barcodeFormat").forEach(
+		(e) => e.addEventListener("input", () => updateCanvasText(canvas))
+	);
+
+	// Handle code type change to show/hide relevant options
+	$("#codeType").addEventListener("change", (e) => {
+		const codeType = e.target.value;
+		const qrGroup = $("#qrErrorCorrectionGroup");
+		const barcodeGroup = $("#barcodeFormatGroup");
+		const codeDataGroup = $("#codeDataGroup");
+		const codePositionGroup = $("#codePositionGroup");
+		const codeSizeGroup = $("#codeSizeGroup");
+
+		if (codeType === "none") {
+			qrGroup.style.display = "none";
+			barcodeGroup.style.display = "none";
+			codeDataGroup.style.display = "none";
+			codePositionGroup.style.display = "none";
+			codeSizeGroup.style.display = "none";
+		} else {
+			codeDataGroup.style.display = "block";
+			codePositionGroup.style.display = "block";
+			codeSizeGroup.style.display = "block";
+
+			if (codeType === "qr") {
+				qrGroup.style.display = "block";
+				barcodeGroup.style.display = "none";
+			} else if (codeType === "barcode") {
+				qrGroup.style.display = "none";
+				barcodeGroup.style.display = "block";
+			}
+		}
+
+		updateCanvasText(canvas);
+	});
+
+	// Image upload
+	const inputImage = $("#inputImage");
+	if (inputImage) {
+		inputImage.addEventListener("change", (e) => {
+			const file = e.target.files[0];
+			if (!file) {
+				uploadedImage = null;
+				updateCanvasText(canvas);
+				updateImagePreview();
+				return;
+			}
+			const img = new Image();
+			img.onload = () => {
+				uploadedImage = img;
+				updateCanvasText(canvas);
+				updateImagePreview();
+			};
+			img.src = URL.createObjectURL(file);
+		});
+	}
+
+	// Update slider value displays
+	const thresholdSlider = $("#threshold");
+	const brightnessSlider = $("#brightness");
+	const contrastSlider = $("#contrast");
+	const noiseSlider = $("#noise");
+	const codeSizeSlider = $("#codeSize");
+	const gammaSlider = $("#gamma");
+	const blurSigmaSlider = $("#blurSigma");
+	const unsharpAmountSlider = $("#unsharpAmount");
+	const claheClipLimitSlider = $("#claheClipLimit");
+
+	if (thresholdSlider) {
+		thresholdSlider.addEventListener("input", (e) => {
+			$("#thresholdValue").textContent = e.target.value;
+		});
+	}
+
+	if (brightnessSlider) {
+		brightnessSlider.addEventListener("input", (e) => {
+			$("#brightnessValue").textContent = e.target.value;
+		});
+	}
+
+	if (contrastSlider) {
+		contrastSlider.addEventListener("input", (e) => {
+			$("#contrastValue").textContent = e.target.value;
+		});
+	}
+
+	if (noiseSlider) {
+		noiseSlider.addEventListener("input", (e) => {
+			$("#noiseValue").textContent = e.target.value;
+		});
+	}
+
+	if (codeSizeSlider) {
+		codeSizeSlider.addEventListener("input", (e) => {
+			$("#codeSizeValue").textContent = e.target.value;
+		});
+	}
+
+	if (gammaSlider) {
+		gammaSlider.addEventListener("input", (e) => {
+			$("#gammaValue").textContent = e.target.value;
+		});
+	}
+
+	if (blurSigmaSlider) {
+		blurSigmaSlider.addEventListener("input", (e) => {
+			$("#blurSigmaValue").textContent = e.target.value;
+		});
+	}
+
+	if (unsharpAmountSlider) {
+		unsharpAmountSlider.addEventListener("input", (e) => {
+			$("#unsharpAmountValue").textContent = e.target.value;
+		});
+	}
+
+	if (claheClipLimitSlider) {
+		claheClipLimitSlider.addEventListener("input", (e) => {
+			$("#claheClipLimitValue").textContent = e.target.value;
+		});
+	}
+
+	// Initialize QR/barcode options visibility
+	const initialCodeType = $("#codeType").value;
+	if (initialCodeType === "none") {
+		$("#qrErrorCorrectionGroup").style.display = "none";
+		$("#barcodeFormatGroup").style.display = "none";
+		$("#codeDataGroup").style.display = "none";
+		$("#codePositionGroup").style.display = "none";
+		$("#codeSizeGroup").style.display = "none";
+	}
+
+	// Preview update hooks for image processing
+	$all("#ditherAlgorithm, #threshold, #brightness, #contrast, #noise, #imageRotation").forEach((e) =>
+		e.addEventListener("input", updateImagePreview)
+	);
+
+	$all(
+		"#useGammaCorrection, #gamma, #usePreFiltering, #blurSigma, #unsharpAmount, #useCLAHE, #claheClipLimit, #useEdgeAware, #useHardwareCleanup, #serpentine"
+	).forEach((e) => e.addEventListener("input", updateImagePreview));
+
+	$all(
+		"#useGammaCorrection, #usePreFiltering, #useCLAHE, #useEdgeAware, #useHardwareCleanup, #serpentine"
+	).forEach((e) => e.addEventListener("change", updateImagePreview));
+
+	updateImagePreview();
 
 	// Slider value displays
 	const imageSizeSlider = $("#imageSize");
