@@ -23,7 +23,7 @@ Additional Attributions from the original Author's GitHub Repo:
 - Visual Modifications made to the Web UI
 - Potential for creating a Docker-ized Version in the future.
 
-<br><img src="https://raw.githubusercontent.com/SpicyLimes/Phomemo-D30-BLE-WebUI/main/Phomemo-D30-Image.png" width="300" alt="Phomemo D30 Label Printer">
-
 ## Update History
 - 2025/12/01: After attemping to merge the best features from Benni306's and narrowstacks' Web UI (and failing), I decided to make a simple landing page that allows access to either UI depending on needs. I am hosting the landing page, and each of the creators Web UI repo files on my own server for ease of access personally (but can be used by anyone). If I can ever properly train a coding AI agent to properly merge these two UI's, I'll add it to this repo in the future. 
+
+<br><img src="https://raw.githubusercontent.com/SpicyLimes/Phomemo-D30-BLE-WebUI/main/Phomemo-D30-Image.png" width="300" alt="Phomemo D30 Label Printer">
